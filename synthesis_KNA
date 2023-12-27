@@ -1,0 +1,450 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
+#include <numeric>
+
+using namespace std;
+
+struct AlphasPlaces
+{
+    char alpha;
+    int main_place;
+    vector<int> ex_places;
+
+    AlphasPlaces(char a, int m, vector<int> e)
+    {
+        alpha = a;
+        main_place = m;
+        ex_places = e;
+    }
+};
+
+struct FromTo
+{
+    vector<int> from;
+    vector<int> to;
+    char ch;
+
+    FromTo(vector<int> f, vector<int> t, char c)
+    {
+        from = f;
+        to = t;
+        ch = c;
+    }
+
+    FromTo(vector<int> f)
+    {
+        from = f;
+        to = {};
+        ch = '\0';
+    }
+};
+
+string get_expression() {
+    ifstream in("input.txt"); // Открываем файл для чтения
+    if (in.is_open()) {
+        string line;
+        if (getline(in, line)) {
+            return "(" + line + ")";
+        }
+        else {
+            cout << "Файл пуст." << endl;
+        }
+    }
+    in.close(); // Закрываем файл после чтения
+
+    return "";
+}
+
+vector<vector<int>> put_start_places(string expression) {
+    vector<vector<int>> places(expression.size() + 1);
+
+    places[0].push_back(0); // добавление начального места
+
+    int count = 1; // счетчик количества основных мест
+
+    for (unsigned int i = 0; i < expression.size(); i++) {
+        if (isalpha(expression[i])) { // если символ - буква
+            places[i + 1].push_back(count); // добавление основного места
+            count += 1;
+        }
+        if (expression[i] == ',') {
+            places[i + 1].push_back(0); // добавление основного места
+        }
+    }
+
+    return places;
+}
+
+string get_substr(string expression, char bkt) {
+
+    string result;
+    int open_count = 0;
+    int close_count = 0;
+
+    for (auto& symbol : expression) { // итерируемся по переданной строке
+        if (bkt == '(') { // счетчик сколько открытых круглых скобок встретилось
+            if (symbol == '(') {
+                open_count += 1;
+            }
+            if (symbol == ')') {
+                close_count += 1;
+            }
+        }
+        else if (bkt == '<') { // счетчик сколько открытых итеративных скобок встретилось
+            if (symbol == '<') {
+                open_count += 1;
+            }
+            if (symbol == '>') {
+                close_count += 1;
+            }
+        }
+        result += symbol;
+        if (open_count == close_count) { // если количество открытых и закрытых скобок совпадает
+            return result;
+        }
+    }
+
+    return "";
+}
+
+int first_rule(string expression, vector<vector<int>>& places, int first_pos = 0) {
+    places[first_pos + 1].insert(places[first_pos + 1].end(), places[first_pos + 0].begin(), places[first_pos + 0].end());
+    sort(places[first_pos + 1].begin(), places[first_pos + 1].end());  // Сначала отсортируем вектор
+    places[first_pos + 1].erase(unique(places[first_pos + 1].begin(), places[first_pos + 1].end()), places[first_pos + 1].end());  // Затем удалим дубликаты
+    for (unsigned int i = 1; i < expression.size(); i++) {
+        if (expression[i] == '(') { // если нашли открывающую скобку
+            string sub_exp = get_substr(expression.substr(i, expression.size() - i), expression[i]);
+            i += first_rule(sub_exp, places, i + first_pos) - 1;
+        }
+        if (expression[i] == '<') {  // если нашли открывающую скобку
+            string sub_exp = get_substr(expression.substr(i, expression.size() - i), expression[i]);
+            i += first_rule(sub_exp, places, i + first_pos) - 1;
+        }
+        if (expression[i] == '|') {
+            places[i + first_pos + 1].insert(places[i + first_pos + 1].end(), places[first_pos + 0].begin(), places[first_pos + 0].end());
+            sort(places[i + first_pos + 1].begin(), places[i + first_pos + 1].end());  // Сначала отсортируем вектор
+            places[i + first_pos + 1].erase(unique(places[i + first_pos + 1].begin(), places[i + first_pos + 1].end()), places[i + first_pos + 1].end());  // Затем удалим дубликаты
+        }
+    }
+    return expression.size();
+}
+
+int second_rule(string expression, vector<vector<int>>& places, int first_pos = 0) {
+
+    for (unsigned int i = 1; i < expression.size(); i++) {
+        if (expression[i] == '(') { // если нашли открывающую скобку
+            string sub_exp = get_substr(expression.substr(i, expression.size() - i), expression[i]);
+            i += second_rule(sub_exp, places, i + first_pos) - 1;
+        }
+        if (expression[i] == '<') {  // если нашли открывающую скобку
+            string sub_exp = get_substr(expression.substr(i, expression.size() - i), expression[i]);
+            i += second_rule(sub_exp, places, i + first_pos) - 1;
+        }
+        if (expression[i] == '|') {
+            places[expression.size() + first_pos].insert(places[expression.size() + first_pos].end(), places[i + first_pos].begin(), places[i + first_pos].end());
+            sort(places[expression.size() + first_pos].begin(), places[expression.size() + first_pos].end());  // Сначала отсортируем вектор
+            places[expression.size() + first_pos].erase(unique(places[expression.size() + first_pos].begin(), places[expression.size() + first_pos].end()), places[expression.size() + first_pos].end());  // Затем удалим дубликаты
+        }
+    }
+    places[expression.size() + first_pos].insert(places[expression.size() + first_pos].end(), places[expression.size() + first_pos - 1].begin(), places[expression.size() + first_pos - 1].end());
+    sort(places[expression.size() + first_pos].begin(), places[expression.size() + first_pos].end());  // Сначала отсортируем вектор
+    places[expression.size() + first_pos].erase(unique(places[expression.size() + first_pos].begin(), places[expression.size() + first_pos].end()), places[expression.size() + first_pos].end());  // Затем удалим дубликаты
+
+    return expression.size();
+}
+
+int third_rule(string expression, vector<vector<int>>& places, int first_pos = 0) {
+
+    for (unsigned int i = 1; i < expression.size(); i++) {
+        if (expression[i] == '<') {  // если нашли открывающую скобку
+            string sub_exp = get_substr(expression.substr(i, expression.size() - i), expression[i]);
+            i += third_rule(sub_exp, places, i + first_pos) - 1;
+
+        }
+    }
+    if (expression[0] == '<') {
+        places[expression.size() + first_pos].insert(places[expression.size() + first_pos].end(), places[first_pos].begin(), places[first_pos].end());
+        sort(places[expression.size() + first_pos].begin(), places[expression.size() + first_pos].end());  // Сначала отсортируем вектор
+        places[expression.size() + first_pos].erase(unique(places[expression.size() + first_pos].begin(), places[expression.size() + first_pos].end()), places[expression.size() + first_pos].end());  // Затем удалим дубликаты
+    }
+    
+    return expression.size();
+}
+
+int fourth_rule(string expression, vector<vector<int>>& places, int first_pos = 0) {
+
+    for (unsigned int i = 1; i < expression.size(); i++) {
+        if (expression[i] == '<') {  // если нашли открывающую скобку
+            string sub_exp = get_substr(expression.substr(i, expression.size() - i), expression[i]);
+            i += fourth_rule(sub_exp, places, i + first_pos) - 1;  
+        }
+        if (expression[0] == '<' && expression[i] == '|') {
+            places[first_pos + i + 1].insert(places[first_pos + i + 1].end(), places[expression.size() + first_pos].begin(), places[expression.size() + first_pos].end());
+            sort(places[first_pos + i + 1].begin(), places[first_pos + i + 1].end());  // Сначала отсортируем вектор
+            places[first_pos + i + 1].erase(unique(places[first_pos + i + 1].begin(), places[first_pos + i + 1].end()), places[first_pos + i + 1].end());  // Затем удалим дубликаты
+        }
+    }
+    if (expression[0] == '<') {
+        places[first_pos + 1].insert(places[first_pos + 1].end(), places[expression.size() + first_pos].begin(), places[expression.size() + first_pos].end());
+        sort(places[first_pos + 1].begin(), places[first_pos + 1].end());  // Сначала отсортируем вектор
+        places[first_pos + 1].erase(unique(places[first_pos + 1].begin(), places[first_pos + 1].end()), places[first_pos + 1].end());  // Затем удалим дубликаты
+    }
+
+    return expression.size();
+}
+
+vector<AlphasPlaces> get_alphas_with_places(string expression, vector<vector<int>> places) {
+    vector<AlphasPlaces> alphas_with_places;
+    int main_place = 1;
+
+    for (unsigned int i = 0; i < expression.size(); i++) { // итерируемся по РВ
+        if (isalpha(expression[i])) {
+            alphas_with_places.push_back(AlphasPlaces(expression[i], main_place, places[i])); // добавляем в структуру
+            main_place += 1;
+        }
+    }
+    
+    return alphas_with_places;
+}
+
+vector<int> get_alpha_main_place(const vector<AlphasPlaces>& alphas_with_places, const vector<int>& q, char x) {
+    vector<int> main_places;
+    for (auto elem : alphas_with_places) { // итерируемся по вспомогательной структуре
+        if (elem.alpha == x) { // если встретилась нужная буква
+            for (unsigned int i = 0; i < q.size(); i++) {
+                if (find(elem.ex_places.begin(), elem.ex_places.end(), q[i]) != elem.ex_places.end()) {
+                    main_places.push_back(elem.main_place);
+                }
+            }
+        }
+    }
+    if (main_places.size())
+        return main_places;
+    else
+        return { -1 };
+}
+
+vector<vector<vector<int>>> get_table(const vector<AlphasPlaces>& alphas_with_places, string expression) {
+    vector<char> rows;
+    for (char c : expression) {
+        if (isalpha(c) && find(rows.begin(), rows.end(), c) == rows.end()) {
+            rows.push_back(c);
+        }
+    }
+
+    vector<vector<vector<int>>> table(rows.size() + 1);
+    table[0].push_back({ 0 });
+    
+    // заполняет таблицу по столбцам
+    for (unsigned int j = 0; j < table[0].size(); j++) // итератор по столбцам
+    {
+        for (unsigned int i = 1; i < table.size(); i++) // итератор по строкам
+        {
+            vector<int> founded_q = get_alpha_main_place(alphas_with_places, table[0][j], rows[i - 1]);
+            sort(founded_q.begin(), founded_q.end());  // Сначала отсортируем вектор
+            founded_q.erase(unique(founded_q.begin(), founded_q.end()), founded_q.end());  // Затем удалим дубликаты
+
+            table[i].push_back(founded_q);
+
+            if (founded_q[0] != -1) {
+                if (find(table[0].begin(), table[0].end(), founded_q) == table[0].end()) {
+                    table[0].push_back(founded_q);
+                }
+            }
+        }
+    }    
+    return table;
+}
+
+void print_table(const vector<vector<vector<int>>>& table, string expression) {
+    vector<char> rows;
+    rows.push_back(' ');
+    for (char c : expression) {
+        if (isalpha(c) && find(rows.begin(), rows.end(), c) == rows.end()) {
+            rows.push_back(c);
+        }
+    }
+    int count = 0;
+
+    for (const auto& row : table) {
+        cout << rows[count] << "\t";
+        for (const auto& column : row) {
+            for (const auto& element : column) {
+                if (element != -1)
+                    cout << element << " ";
+                else
+                    cout << "-";
+            }
+            cout << "\t";
+        }
+        count += 1;
+        cout << endl;
+    }
+}
+
+vector<FromTo> get_from_to_vec(const vector<vector<vector<int>>>& table, const vector<char>& rows) {
+    vector<FromTo> result;
+    
+    for (unsigned int j = 0; j < table[0].size(); j++) {
+        vector<int> from = (table[0][j]); // вектор для хранения состояний из которых совершается переход
+        char ch;
+        for (unsigned int i = 1; i < table.size(); i++) {
+            if (table[i][j][0] != -1) { // если в состояние перейти можно
+                vector<int> to = table[i][j]; // вектор для хранения состояний в которые можно перейти
+                ch = rows.at(i - 1);
+                result.push_back(FromTo(from, to, ch));
+            }
+
+        }
+    }
+
+    return result;
+}
+
+int get_size(const vector<vector<vector<int>>>& table) {
+    int max_size = 0;
+
+    for (auto i : table[0]) { // выяснение размера матрицы путем поиска максимального индекса переходов
+        for (auto j : i) {
+            if (max_size < j) {
+                max_size = j;
+            }
+        }
+    }
+    return max_size + 2;
+}
+
+vector<int> get_last_places(vector<vector<int>> places, string expression) {
+    vector<int> result;
+
+    for (int i = 0; i < expression.size(); i++) { // итерируемся по РВ
+        if (expression[i] == ',') { // если встретилась запятая
+            result.insert(result.end(), places[i].begin(), places[i].end()); // сохранение мест конца встретившейся РВ
+        }
+    }
+    result.insert(result.end(), places.back().begin(), places.back().end()); // сохранение мест последней РВ
+    return result;
+}
+
+void print_matrix(const vector<vector<vector<int>>>& table, string expression, const vector<vector<int>> places) {
+    vector<char> rows;
+    for (char c : expression) {
+        if (isalpha(c) && find(rows.begin(), rows.end(), c) == rows.end()) {
+            rows.push_back(c);
+        }
+    }
+
+    vector<int> last_places = get_last_places(places, expression);
+
+    vector<FromTo> ftv = get_from_to_vec(table, rows);
+
+    int size = get_size(table);
+
+    vector<vector<string>> matrix(size, vector<string>(size, "-")); // инициализация матрицы переходов
+
+    for (auto i : ftv) { // итерируемся по вектору from_to
+        for (auto j : i.from) { // итерируемся по вектору "текущего" состояния
+            for (auto n : i.to) { // итерируемся по вектору состояний, в которые можно перейти из "текущего"
+                if (find(last_places.begin(), last_places.end(), n) != last_places.end()) { // определение является ли состояние конечным
+                    string data;
+                    data += i.ch;
+                    data += "/1";
+                    //data += out_number;
+                    matrix[j + 1][n + 1] = data;
+                }
+                else {
+                    string data;
+                    data += i.ch;
+                    data += "/0";
+                    matrix[j + 1][n + 1] = data;
+                }
+            }
+        }
+    }
+
+    ofstream outputFile("output.txt", ios::app);
+
+    matrix[0][0] = "";
+    for (unsigned int i = 1; i < matrix[0].size(); i++) {
+        matrix[0][i] = "q" + to_string(i - 1);
+        matrix[i][0] = "q" + to_string(i - 1);
+    }
+    for (unsigned int i = 0; i < matrix.size(); i++) {
+        for (unsigned int j = 0; j < matrix.size(); j++) {
+            outputFile << matrix[i][j] << "\t";
+            cout << matrix[i][j] << "\t";
+        }
+        outputFile << endl;
+        cout << endl;
+    }
+
+    return;
+}
+
+void print_places(const vector<vector<int>>& places, string expression) {
+
+    // Найти максимальное количество элементов в столбце
+    size_t maxColumnSize = 0;
+    for (const auto& innerVec : places) {
+        maxColumnSize = max(maxColumnSize, innerVec.size());
+    }
+
+    cout << setw(2) << " ";
+    for (unsigned int i = 0; i < expression.size(); i++) {
+        cout << setw(4) << expression[i];
+    }
+    cout << endl;
+    // Вывод элементов вертикально с выравниванием по столбцам
+    for (size_t row = 0; row < maxColumnSize; ++row) {
+        for (const auto& innerVec : places) {
+            if (row < innerVec.size()) {
+                cout << setw(4) << innerVec[row];
+            }
+            else {
+                cout << setw(4) << " ";
+            }
+        }
+        cout << endl;
+    }
+}
+
+int main()
+{
+    string expression = get_expression();
+
+    vector<vector<int>> places = put_start_places(expression);
+    vector<vector<int>> ex_places;
+
+    while (places != ex_places) {
+        ex_places = places;
+        first_rule(expression, places);
+        second_rule(expression, places);
+        third_rule(expression, places);
+        fourth_rule(expression, places);
+    }
+    
+    places.pop_back();
+    places.erase(places.begin());
+    expression.pop_back();
+    expression.erase(expression.begin());
+
+    cout << "R: " << expression << endl;
+
+    print_places(places, expression);
+    cout << endl;
+
+    vector<vector<vector<int>>> table = get_table(get_alphas_with_places(expression, places), expression);
+
+    print_table(table, expression);
+    cout << endl;
+
+    ofstream outputFile("output.txt", ios::trunc);
+
+    print_matrix(table, expression, places);
+
+    return 0;
+}
